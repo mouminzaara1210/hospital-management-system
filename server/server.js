@@ -1,79 +1,79 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const http = require('http');
-const { Server } = require('socket.io');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const connectDB = require('./config/db');
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
 
-// Connect to MongoDB
-connectDB();
+// 🔹 Load env variables
+dotenv.config();
 
 const app = express();
-const server = http.createServer(app);
 
-// Socket.io Setup
-const io = new Server(server, {
-  cors: {
-    origin: '*', // TODO: restrict in production
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  },
-});
+// =====================
+// ✅ MIDDLEWARE
+// =====================
 
-// Pass io instance to express app so routes can use it
-app.set('socketio', io);
+// 🔥 CORS FIX (VERY IMPORTANT for Vercel)
+app.use(cors({
+  origin: "*", // allow all (safe for your demo)
+}));
 
-// Middleware
-app.use(helmet());
-app.use(cors());
+// JSON parser
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+// =====================
+// ✅ DATABASE CONNECTION
+// =====================
+
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log("✅ MongoDB Connected"))
+.catch((err) => console.error("❌ DB Error:", err));
+
+// =====================
+// ✅ ROUTES IMPORT
+// =====================
+
+// 👉 Make sure these files exist
+import authRoutes from "./routes/authRoutes.js";
+import staffRoutes from "./routes/staffRoutes.js";
+import settingsRoutes from "./routes/settingsRoutes.js";
+
+// =====================
+// ✅ ROUTES USE
+// =====================
+
+app.use("/api/auth", authRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/settings", settingsRoutes);
+
+// =====================
+// ✅ ROOT ROUTE (for testing)
+// =====================
+
+app.get("/", (req, res) => {
+  res.send("🚀 HMS Backend Running");
 });
-app.use('/api/', limiter);
 
-// Routes
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/patients', require('./routes/patientRoutes'));
-app.use('/api/appointments', require('./routes/appointmentRoutes'));
-app.use('/api/clinical', require('./routes/clinicalRoutes'));
-app.use('/api/beds', require('./routes/bedRoutes'));
-app.use('/api/analytics', require('./routes/analyticsRoutes'));
-app.use('/api/staff', require('./routes/staffRoutes'));
-app.use('/api/settings', require('./routes/settingsRoutes'));
-app.use('/api/users', require('./routes/userRoutes'));
+// =====================
+// ✅ ERROR HANDLER (optional but useful)
+// =====================
 
-// Basic default route
-app.get('/', (req, res) => {
-  res.send('HMS API is running...');
-});
-
-// Socket.io event handling
-io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-
-  // User joins a personal room
-  socket.on('join:user', (userId) => {
-    socket.join(`room:${userId}`);
-    console.log(`User ${userId} joined their personal room.`);
-  });
-
-  // Staff joins a ward room
-  socket.on('join:ward', (wardName) => {
-    socket.join(`room:ward:${wardName}`);
-    console.log(`Staff joined ward room: ${wardName}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`Socket disconnected: ${socket.id}`);
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({
+    success: false,
+    message: "Server Error",
   });
 });
+
+// =====================
+// ✅ PORT (IMPORTANT FOR RENDER)
+// =====================
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
