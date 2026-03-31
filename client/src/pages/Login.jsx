@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuthStore from "../store/authStore";
-import API_BASE_URL from "../config/api";
+import { apiRequest } from "../utils/apiRequest";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -16,32 +16,20 @@ const Login = () => {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const data = await apiRequest("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Login failed");
-      }
-
-      // save user
       login(data.user, data.token);
 
-      // role-based redirect
-      if (data.user.role === "admin") {
+      if (data.user.role === "Super Admin") {
         navigate("/admin");
       } else {
         navigate("/doctor");
       }
 
     } catch (err) {
-      console.error(err);
       setError(err.message);
     }
   };
@@ -49,21 +37,20 @@ const Login = () => {
   return (
     <div className="login-container">
       <h1>Apollo HMS</h1>
-      <p>Sign in to access your portal</p>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       <form onSubmit={handleLogin}>
         <input
           type="email"
-          placeholder="Email"
+          placeholder="admin@hms.com / doctor@hms.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
 
         <input
           type="password"
-          placeholder="Password"
+          placeholder="any password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
